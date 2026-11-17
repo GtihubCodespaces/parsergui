@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "notes": "Skills are plain Markdown. The bridge concatenates every .md file in this folder into the agent system prompt, in alphabetical order. Keep each file short enough to stay useful inside a context window; the loader stops at 60 KB.",
+  "skills": [
+    {
+      "name": "agent-contract",
+      "file": "agent-contract.md",
+      "purpose": "Tool contract, allowed paths, edit budget, stop conditions, verification."
+    },
+    {
+      "name": "imgui-reconstruction",
+      "file": "imgui-reconstruction.md",
+      "purpose": "Mapping measured elements to ImGui widgets and ImDrawList primitives."
+    },
+    {
+      "name": "pixel-forensics",
+      "file": "pixel-forensics.md",
+      "purpose": "How measurements are produced, what they mean, and when to distrust them."
+    },
+    {
+      "name": "frontend-design",
+      "file": "frontend-design.md",
+      "purpose": "Layout, type, colour and interaction rules for the reconstruction and the studio."
+    },
+    {
+      "name": "unslop",
+      "file": "unslop.md",
+      "purpose": "Anti-slop rules for prose, code, commits, UI copy and generated comments."
+    }
+  ]
+}

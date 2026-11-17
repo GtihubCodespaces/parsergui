@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>parsergui</title>
+<style>
+  :root { --bg:#0D1015; --surface:#12161D; --surface2:#171C25; --line:#252C38; --text:#E7EAF1; --muted:#8B94A6; --accent:#5E81F4; --ok:#34D399; --err:#F87171; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:13px/1.5 -apple-system,Roboto,system-ui,sans-serif; padding:14px; }
+  h1 { font-size:15px; margin:0; letter-spacing:.2px; }
+  .sub { color:var(--muted); font-size:11px; margin-top:2px; }
+  header { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:14px; }
+  button { background:var(--surface2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 13px; font:inherit; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button:disabled { opacity:.45; }
+  .panel { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+  .label { color:var(--muted); font-size:10px; letter-spacing:.9px; text-transform:uppercase; margin-bottom:6px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .images { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .images figure { margin:0; }
+  .images img { width:100%; border:1px solid var(--line); border-radius:6px; display:block; background:#000; }
+  figcaption { color:var(--muted); font-size:10px; margin-top:4px; }
+  pre { background:#0A0D12; border:1px solid var(--line); border-radius:6px; padding:10px; overflow:auto; max-height:46vh; font:11px/1.45 ui-monospace,monospace; color:#C8D0DE; margin:0; }
+  .metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .metric { background:var(--surface2); border-radius:7px; padding:8px; }
+  .metric b { display:block; font-size:16px; font-variant-numeric:tabular-nums; }
+  .metric span { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.6px; }
+  .status { font-size:12px; color:var(--muted); min-height:18px; }
+  .status.error { color:var(--err); }
+  .status.ok { color:var(--ok); }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>parsergui</h1>
+    <div class="sub" id="version">moteur local</div>
+  </div>
+  <button class="primary" id="pick">Capture</button>
+</header>
+
+<div class="panel">
+  <div class="label">État</div>
+  <div class="status" id="status">Choisissez une capture d'écran. Le moteur mesure les pixels sur l'appareil.</div>
+</div>
+
+<div class="panel" id="result" style="display:none">
+  <div class="label">Mesures</div>
+  <div class="metrics" id="metrics"></div>
+</div>
+
+<div class="panel" id="preview" style="display:none">
+  <div class="label">Reconstruction et écart</div>
+  <div class="images">
+    <figure><img id="img-recon" alt="reconstruction"><figcaption>reconstruction</figcaption></figure>
+    <figure><img id="img-diff" alt="diff"><figcaption>diff</figcaption></figure>
+  </div>
+</div>
+
+<div class="panel" id="codepanel" style="display:none">
+  <div class="label">Code ImGui</div>
+  <div class="row" style="margin-bottom:8px"><button id="copy">Copier</button></div>
+  <pre id="code"></pre>
+</div>
+
+<script>
+const el = (id) => document.getElementById(id);
+el('version').textContent = Pgr.version();
+let last = '';
+let timer = null;
+
+el('pick').onclick = () => {
+  el('status').className = 'status';
+  el('status').textContent = 'Sélection de la capture...';
+  Pgr.pick();
+  if (timer) clearInterval(timer);
+  timer = setInterval(() => {
+    const path = Pgr.takePicked();
+    if (!path) return;
+    clearInterval(timer);
+    timer = null;
+    run(path);
+  }, 250);
+};
+
+el('copy').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(el('code').textContent);
+    el('status').className = 'status ok';
+    el('status').textContent = 'Code copié.';
+  } catch (error) {
+    el('status').className = 'status error';
+    el('status').textContent = 'Copie impossible : ' + error;
+  }
+};
+
+function run(path) {
+  el('status').className = 'status';
+  el('status').textContent = 'Analyse en cours...';
+  setTimeout(() => {
+    let result;
+    try {
+      result = JSON.parse(Pgr.parse(path, 24));
+    } catch (error) {
+      el('status').className = 'status error';
+      el('status').textContent = 'Erreur native : ' + error;
+      return;
+    }
+    if (!result.ok) {
+      el('status').className = 'status error';
+      el('status').textContent = result.error || 'Analyse échouée.';
+      return;
+    }
+    el('status').className = 'status ok';
+    el('status').textContent = result.elements + ' éléments mesurés · ' + result.out;
+    el('metrics').innerHTML = [
+      ['fidélité', result.fidelity.toFixed(1) + '/100'],
+      ['éléments', result.elements],
+      ['grille', result.grid + ' px'],
+      ['panels', result.cards],
+      ['boutons', result.buttons],
+      ['icônes', result.icons]
+    ].map(([k, v]) => '<div class="metric"><b>' + v + '</b><span>' + k + '</span></div>').join('');
+    const stamp = '?t=' + Date.now();
+    el('img-recon').src = 'file://' + result.out + '/reconstruction.png' + stamp;
+    el('img-diff').src = 'file://' + result.out + '/diff.png' + stamp;
+    const text = Pgr.readText(result.out + '/parsed_ui.cpp');
+    el('code').textContent = text || ('// ' + result.out + '/parsed_ui.cpp');
+    el('result').style.display = 'block';
+    el('preview').style.display = 'block';
+    el('codepanel').style.display = 'block';
+  }, 60);
+}
+</script>
+</body>
+</html>
