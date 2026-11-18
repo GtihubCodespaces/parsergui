@@ -109,7 +109,9 @@ Image render_reconstruction(const Screen& screen, const Image* source, const Ren
             canvas.stroke_rect_rounded(r, static_cast<float>(e->radius),
                                        static_cast<float>(std::max(1, e->border.max_thickness())), bc);
         }
-        if (options.carry_text_pixels && source && !e->text.box.empty() && !e->text.text.empty()) {
+        // Any element that carries a measured text box reuses the source glyphs:
+        // the score must measure geometry, not the absence of OCR.
+        if (options.carry_text_pixels && source && !e->text.box.empty()) {
             const Lab ink = to_lab(e->text.color);
             for (int y = e->text.box.y; y < e->text.box.bottom(); ++y)
                 for (int x = e->text.box.x; x < e->text.box.right(); ++x) {

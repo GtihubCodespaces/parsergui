@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{A1B2C3D4-1111-4A2B-9C3D-000000000001}</ProjectGuid>
+    <RootNamespace>pgr_core</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="common.props" />
+  <ItemGroup>
+    <ClCompile Include="..\core\types.cpp" />
+    <ClCompile Include="..\core\image.cpp" />
+    <ClCompile Include="..\core\stb_impl.cpp" />
+    <ClCompile Include="..\core\color.cpp" />
+    <ClCompile Include="..\core\raster.cpp" />
+    <ClCompile Include="..\core\segment.cpp" />
+    <ClCompile Include="..\core\font.cpp" />
+    <ClCompile Include="..\core\detect.cpp" />
+    <ClCompile Include="..\core\render.cpp" />
+    <ClCompile Include="..\core\emit.cpp" />
+    <ClCompile Include="..\core\json.cpp" />
+    <ClCompile Include="..\core\parser.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\core\types.h" />
+    <ClInclude Include="..\core\image.h" />
+    <ClInclude Include="..\core\color.h" />
+    <ClInclude Include="..\core\raster.h" />
+    <ClInclude Include="..\core\segment.h" />
+    <ClInclude Include="..\core\font.h" />
+    <ClInclude Include="..\core\detect.h" />
+    <ClInclude Include="..\core\render.h" />
+    <ClInclude Include="..\core\emit.h" />
+    <ClInclude Include="..\core\json.h" />
+    <ClInclude Include="..\core\parser.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

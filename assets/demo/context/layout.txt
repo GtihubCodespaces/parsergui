@@ -1,0 +1,32 @@
+parsergui layout — context_source.png (640x420)
+grid 4px, margin 20px, dpr 1
+
+#0 Window [0,0 640x420] pad(20,20,20,20)  100%
+  #1 Panel [20,20 600x380] r11 b1 pad(24,23,100,120) gap 12  55%
+    #2 Panel [300,80 220x200] r6 b1 pad(16,14,16,0) gap 31  55%
+      #3 Toggle [320,126 18x14]  55%
+        #26 Icon [320,126 18x14] icon:edit  100%
+      #4 Toggle [320,198 14x16] r7  55%
+        #23 Icon [320,198 14x16] icon:lock  82%
+      #5 Toggle [320,96 18x12]  55%
+        #27 Icon [320,96 18x12] icon:check  88%
+      #6 Toggle [320,232 14x14]  55%
+        #20 Label [322,238 10x6]  63%
+        #24 Icon [320,232 14x14] icon:trash  100%
+      #7 Toggle [320,160 14x14] r7  55%
+        #25 Icon [320,160 14x14] icon:download  100%
+      #8 Unknown [496,234 8x10]  55%
+        #28 Icon [496,234 8x10] icon:chevron_right  77%
+      #11 MenuItem [344,94 61x9]  98%
+      #12 Label [470,94 29x9]  76%
+      #13 MenuItem [344,126 69x9]  98%
+      #14 Label [470,126 29x9]  76%
+      #15 MenuItem [344,158 69x9]  98%
+      #16 Label [470,158 29x9]  76%
+      #17 MenuItem [344,198 69x9]  98%
+      #18 Label [470,198 29x9]  76%
+      #19 MenuItem [344,230 69x9]  98%
+      #21 Toggle [316,262 22x18]  71%
+      #22 MenuItem [344,262 52x9]  93%
+    #9 Label [44,43 87x11]  98%
+    #10 Label [44,66 173x9]  98%

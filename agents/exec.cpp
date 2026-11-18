@@ -171,7 +171,7 @@ bool which(const std::string& binary, std::string* resolved) {
         }
         return false;
     }
-    const char* path_env = std::getenv("PATH");
+    const char* path_env = getenv("PATH");
     if (!path_env) return false;
     std::string path(path_env);
     size_t start = 0;
@@ -277,7 +277,7 @@ ProcessResult run_process(const std::vector<std::string>& argv, const std::strin
 }
 
 bool which(const std::string& binary, std::string* resolved) {
-    const char* path_env = std::getenv("PATH");
+    const char* path_env = getenv("PATH");
     if (!path_env) return false;
     std::string path(path_env);
     std::vector<std::string> names{binary};

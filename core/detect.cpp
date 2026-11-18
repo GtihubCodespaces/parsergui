@@ -375,6 +375,204 @@ std::string glyph_class_of(int glyphs, int width) {
     return "alpha";
 }
 
+// The ink of a small monochrome glyph is the pixel furthest from the background:
+// averaging the box would sample mostly background and lose the colour.
+RGBA extreme_ink(const Image& img, const RectI& box, RGBA background) {
+    RGBA best = background;
+    float best_delta = 0.f;
+    const Lab bg = to_lab(background);
+    const RectI r = box.clip(img.width(), img.height());
+    for (int y = r.y; y < r.bottom(); ++y)
+        for (int x = r.x; x < r.right(); ++x) {
+            const RGBA c = img.at(x, y);
+            const float d = delta_e_lab(to_lab(c), bg);
+            if (d > best_delta) {
+                best_delta = d;
+                best = c;
+            }
+        }
+    return best;
+}
+
+bool saturated(RGBA c) {
+    const int mx = std::max(std::max(c.r, c.g), c.b);
+    const int mn = std::min(std::min(c.r, c.g), c.b);
+    return mx - mn > 55 && mx > 90;
+}
+
+// Second pass, after the tree exists: roles that only make sense in context.
+// A menu row is a label inside a popup, a tab is a label over an accent rule, a
+// checkbox is a small box next to its label. Geometry alone cannot tell them apart.
+void refine_roles(Screen& screen, int img_w, int img_h) {
+    auto& els = screen.elements;
+    if (els.empty()) return;
+    auto is_text = [&](int id) {
+        return id >= 0 && id < static_cast<int>(els.size()) && els[static_cast<size_t>(id)].text.size_px > 0.f;
+    };
+
+    int menu_bar = -1;
+    int menu_y = img_h;
+    for (const auto& e : els)
+        if (e.type == ElementType::Panel && e.rect.h >= 26 && e.rect.h <= 56 && e.rect.y <= 48 &&
+            e.rect.w >= img_w / 2 && e.rect.y < menu_y) {
+            menu_bar = e.id;
+            menu_y = e.rect.y;
+        }
+    if (menu_bar >= 0) {
+        for (int c : els[static_cast<size_t>(menu_bar)].children)
+            if (is_text(c) && els[static_cast<size_t>(c)].rect.h <= 26 &&
+                els[static_cast<size_t>(c)].rect.x >= els[static_cast<size_t>(menu_bar)].rect.x + 80)
+                els[static_cast<size_t>(c)].type = ElementType::MenuItem;
+    }
+
+    // Dropdowns: a floating panel with a vertical stack of labels on one edge.
+    for (auto& e : els) {
+        if (e.type != ElementType::Panel) continue;
+        if (e.rect.w < 120 || e.rect.w > 420 || e.rect.h < 100 || e.rect.h > 320) continue;
+        if (e.rect.y < 16 || e.rect.y > 300) continue;
+        // A form panel also stacks labels; it is not a menu. Controls give it away.
+        bool has_controls = false;
+        for (int c : e.children) {
+            const ElementType t = els[static_cast<size_t>(c)].type;
+            if (t == ElementType::Input || t == ElementType::Toggle || t == ElementType::Slider ||
+                t == ElementType::Button)
+                has_controls = true;
+        }
+        if (has_controls) continue;
+        std::vector<int> labels;
+        for (int c : e.children)
+            if (is_text(c)) labels.push_back(c);
+        if (labels.size() < 3) continue;
+        // Split into columns: a row label and its shortcut are two stacks. The
+        // largest stack with a consistent vertical rhythm is the item column.
+        std::vector<int> column;
+        for (int c : labels) {
+            std::vector<int> group;
+            const int cx = els[static_cast<size_t>(c)].rect.x;
+            for (int o : labels)
+                if (std::abs(els[static_cast<size_t>(o)].rect.x - cx) <= 8) group.push_back(o);
+            if (group.size() > column.size()) column = group;
+        }
+        if (column.size() < 3) continue;
+        std::sort(column.begin(), column.end(), [&](int a, int b) {
+            return els[static_cast<size_t>(a)].rect.y < els[static_cast<size_t>(b)].rect.y;
+        });
+        int consecutive = 0;
+        for (size_t i = 1; i < column.size(); ++i) {
+            const int dy = els[static_cast<size_t>(column[i])].rect.y -
+                           els[static_cast<size_t>(column[i - 1])].rect.y;
+            if (dy >= 18 && dy <= 52) ++consecutive;
+        }
+        if (consecutive < 2) continue;
+        const int top = els[static_cast<size_t>(column.front())].rect.x;
+        for (int c : column) {
+            if (els[static_cast<size_t>(c)].rect.x - top <= 8)
+                els[static_cast<size_t>(c)].type = ElementType::MenuItem;
+        }
+    }
+
+    // Tabs: a label sitting on a thin saturated rule.
+    for (auto& e : els) {
+        if (e.type != ElementType::Label || e.text.size_px <= 0.f) continue;
+        bool tab = false;
+        for (const auto& rule : els) {
+            if (rule.rect.h > 4 || rule.rect.h <= 0 || rule.rect.w < 16) continue;
+            if (!saturated(rule.fill.top)) continue;
+            if (rule.rect.y < e.rect.bottom() || rule.rect.y > e.rect.bottom() + 12) continue;
+            if (rule.rect.x < e.rect.x - 8 || rule.rect.x > e.rect.x + 8) continue;
+            tab = true;
+            break;
+        }
+        if (!tab) continue;
+        for (auto& sib : els)
+            if (sib.type == ElementType::Label && std::abs(sib.rect.y - e.rect.y) <= 2 &&
+                sib.rect.x >= e.rect.x - 4 && sib.rect.h <= e.rect.h + 4)
+                sib.type = ElementType::Tab;
+    }
+
+    // List rows: wide short panels holding several cells.
+    for (auto& e : els) {
+        if (e.type != ElementType::Panel) continue;
+        if (e.id == menu_bar) continue;
+        if (e.rect.w >= img_w * 9 / 10) continue;  // menu bar, toolbar, status bar
+        if (e.rect.h < 30 || e.rect.h > 52 || e.rect.w < 200) continue;
+        int labels = 0;
+        for (int c : e.children)
+            if (is_text(c)) ++labels;
+        if (labels >= 2) e.type = ElementType::ListItem;
+    }
+    // Sidebar: a tall narrow panel with a column of labels.
+    for (auto& e : els) {
+        if (e.type != ElementType::Panel) continue;
+        if (e.rect.h < 280 || e.rect.w > 340 || e.rect.w < 120) continue;
+        std::vector<int> labels;
+        for (int c : e.children)
+            if (is_text(c) && els[static_cast<size_t>(c)].type == ElementType::Label) labels.push_back(c);
+        if (labels.size() < 4) continue;
+        int min_x = img_w, max_x = 0;
+        for (int c : labels) {
+            min_x = std::min(min_x, els[static_cast<size_t>(c)].rect.x);
+            max_x = std::max(max_x, els[static_cast<size_t>(c)].rect.x);
+        }
+        if (max_x - min_x > 24) continue;
+        for (int c : labels) els[static_cast<size_t>(c)].type = ElementType::ListItem;
+    }
+
+    for (auto& e : els) {
+        // Badges: a pill with its own text.
+        if (e.rect.h >= 14 && e.rect.h <= 26 && e.rect.w <= 170 && e.radius >= 4) {
+            bool has_text = false;
+            for (int c : e.children)
+                if (is_text(c)) has_text = true;
+            if (has_text) e.type = ElementType::Badge;
+        }
+        // Toggles: a checkbox or a switch next to its label.
+        const bool checkbox = e.rect.w >= 12 && e.rect.w <= 26 && e.rect.h >= 12 && e.rect.h <= 26;
+        const bool switch_box = e.rect.w >= 28 && e.rect.w <= 64 && e.rect.h >= 14 && e.rect.h <= 30 &&
+                                e.radius >= e.rect.h / 3;
+        if ((checkbox || switch_box) && e.parent != menu_bar && e.type != ElementType::Icon) {
+            bool labelled = false;
+            for (const auto& other : els)
+                if (other.id != e.id && is_text(other.id) && std::abs(other.rect.cy() - e.rect.cy()) <= 6 &&
+                    other.rect.x >= e.rect.right() && other.rect.x - e.rect.right() <= 22) {
+                    labelled = true;
+                    break;
+                }
+            if (labelled) e.type = ElementType::Toggle;
+        }
+        // Sliders and progress bars: thin tracks, with or without a knob. Text
+        // lines are also thin, so they must be excluded explicitly.
+        if (e.rect.h <= 10 && e.rect.w >= 40 && e.text.size_px <= 0.f) {
+            bool knob = false;
+            for (const auto& other : els)
+                if (other.rect.w >= 10 && other.rect.w <= 20 && other.rect.h >= 10 && other.rect.h <= 20 &&
+                    std::abs(other.rect.cy() - e.rect.cy()) <= 6 && other.rect.x >= e.rect.right() - 10 &&
+                    other.rect.x <= e.rect.right() + 16) {
+                    knob = true;
+                    break;
+                }
+            e.type = knob ? ElementType::Slider : ElementType::Progress;
+        }
+        // Icon-only toolbar buttons.
+        if (e.type == ElementType::Panel && e.rect.w >= 24 && e.rect.w <= 48 && e.rect.h >= 24 && e.rect.h <= 48 &&
+            e.radius >= 4) {
+            e.type = ElementType::Button;
+        }
+    }
+
+    // Inputs: a bordered field whose text is left aligned, unlike a button label.
+    for (auto& e : els) {
+        if (e.type != ElementType::Button) continue;
+        if (!e.border.present() || e.rect.h < 28 || e.rect.h > 52 || e.rect.w < 80) continue;
+        if (e.text.size_px <= 0.f) continue;
+        const int left_gap = e.text.box.x - e.rect.x;
+        const int centered = std::abs(e.text.box.cx() - e.rect.cx());
+        if (left_gap >= 8 && left_gap <= e.rect.w / 2 && centered > 12) e.type = ElementType::Input;
+    }
+
+    (void)img_h;
+}
+
 ElementType classify(const Screen& screen, const Element& e, RGBA parent_fill, int image_area) {
     const int area = e.rect.area();
     if (area >= image_area * 0.90) return ElementType::Window;
@@ -383,7 +581,8 @@ ElementType classify(const Screen& screen, const Element& e, RGBA parent_fill, i
     const bool has_text = !e.text.text.empty() || e.text.size_px > 0.f;
     const bool differs = delta_e(e.fill.top, parent_fill) > 3.f;
 
-    if (e.rect.w <= 40 && e.rect.h <= 40 && e.rect.w >= 8 && e.rect.h >= 8 && !has_text) return ElementType::Icon;
+    // Icons are decided by the dedicated pass: it merges nearby strokes and can
+    // name the glyph. Classifying a bare square here produced unnamed duplicates.
     if (e.rect.w >= 60 && e.rect.w <= 260 && e.rect.h >= 14 && e.rect.h <= 28 &&
         static_cast<float>(e.rect.w) / e.rect.h > 1.6f && e.radius >= 6 && !has_text && differs)
         return ElementType::Toggle;
@@ -451,7 +650,10 @@ Screen detect_screen(const Image& source, const AnalysisOptions& options, const 
     for (size_t i = 0; i < comps.size(); ++i) {
         if (is_glyph[i]) continue;
         const auto& c = comps[i];
-        if (c.bbox.w < 6 || c.bbox.h < 4) continue;
+        // Keep 2px tab indicators and rules, but drop 1px hairlines that are only
+        // anti-aliasing noise. A thin line must be wide enough to be deliberate.
+        if (c.bbox.h < 2 || c.bbox.w < 3) continue;
+        if (c.bbox.h < 4 && c.bbox.w < 32) continue;
         if (c.bbox.area() < std::max(48, options.min_element_size * options.min_element_size)) continue;
         const double fill_ratio = static_cast<double>(c.area) / std::max(1, c.bbox.area());
         if (fill_ratio < 0.12) continue;
@@ -627,10 +829,20 @@ Screen detect_screen(const Image& source, const AnalysisOptions& options, const 
                     break;
                 }
             if (overlaps_text) continue;
-            const RGBA ink = dominant_ink(img, box.inflate(1), screen.background);
+            const RGBA ink = extreme_ink(img, box, screen.background);
             if (delta_e(ink, screen.background) < 6.f) continue;
             const IconMatch match = match_icon(img, box, ink);
-            if (match.score < 0.42f) continue;
+            const float min_score = (box.w < 12 || box.h < 12) ? 0.52f : 0.32f;
+            if (match.score < min_score) continue;
+            bool duplicate = false;
+            for (const auto& existing : screen.elements) {
+                if (existing.type != ElementType::Icon) continue;
+                if (existing.rect.intersect(box).area() > box.area() / 2) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (duplicate) continue;
             int host = 0;
             int host_area = image_area * 2;
             for (const auto& e : screen.elements) {
@@ -645,7 +857,7 @@ Screen detect_screen(const Image& source, const AnalysisOptions& options, const 
             e.parent = host;
             e.rect = box;
             e.type = ElementType::Icon;
-            e.icon.name = match.name;
+            e.icon.name = match.score >= 0.55f && !match.name.empty() ? match.name : "glyph";
             e.icon.score = match.score;
             e.icon.color = ink;
             e.icon.stroke_px = measure_stroke_px(img, box, ink);
@@ -707,6 +919,48 @@ Screen detect_screen(const Image& source, const AnalysisOptions& options, const 
         for (int c : screen.elements[id].children) walk(c, depth + 1);
     };
     walk(0, 0);
+
+    // Drop raw components that never became a real element, then remap ids so the
+    // tree stays consistent. Without this, the anonymous strokes inside an icon
+    // show up as duplicate boxes next to the icon that already covers them.
+    if (screen.elements.size() > 1) {
+        const size_t n = screen.elements.size();
+        std::vector<int> remap(n, -1);
+        std::vector<Element> kept;
+        kept.reserve(n);
+        for (size_t i = 0; i < n; ++i) {
+            const Element& e = screen.elements[i];
+            const bool empty = e.rect.area() <= 0;
+            bool covered_by_icon = false;
+            if (e.type == ElementType::Unknown && e.children.empty()) {
+                for (const auto& other : screen.elements)
+                    if (other.id != e.id && other.type == ElementType::Icon && other.rect.contains(e.rect)) {
+                        covered_by_icon = true;
+                        break;
+                    }
+            }
+            if (empty || covered_by_icon) continue;
+            remap[i] = static_cast<int>(kept.size());
+            kept.push_back(e);
+        }
+        if (kept.empty()) {
+            kept.push_back(screen.elements.front());
+            remap[0] = 0;
+        }
+        for (auto& e : kept) {
+            if (e.parent >= 0 && e.parent < static_cast<int>(n))
+                e.parent = remap[static_cast<size_t>(e.parent)] >= 0 ? remap[static_cast<size_t>(e.parent)] : 0;
+            std::vector<int> kids;
+            kids.reserve(e.children.size());
+            for (int c : e.children)
+                if (c >= 0 && c < static_cast<int>(n) && remap[static_cast<size_t>(c)] >= 0)
+                    kids.push_back(remap[static_cast<size_t>(c)]);
+            e.children = std::move(kids);
+        }
+        screen.elements = std::move(kept);
+    }
+
+    refine_roles(screen, img.width(), img.height());
 
     // Layout metrics.
     std::vector<int> measurements;

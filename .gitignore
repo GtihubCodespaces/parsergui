@@ -44,3 +44,7 @@ android/build/
 .vscode/
 *.swp
 compile_commands.json
+
+# shipped prebuilt binaries (explicitly requested)
+!prebuilt/
+!prebuilt/**

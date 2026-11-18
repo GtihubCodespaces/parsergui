@@ -25,7 +25,7 @@ std::string query_host(const std::string& url) {
 
 std::string env_value(const std::string& name) {
     if (name.empty()) return {};
-    const char* v = std::getenv(name.c_str());
+    const char* v = getenv(name.c_str());
     return v ? std::string(v) : std::string();
 }
 

@@ -48,7 +48,7 @@ std::string find_asset(const std::string& relative, const char* argv0) {
 
 std::string data_dir(const std::string& override_dir) {
     if (!override_dir.empty()) return override_dir;
-    if (const char* env = std::getenv("PARSERGUI_DATA")) return env;
+    if (const char* env = getenv("PARSERGUI_DATA")) return env;
     std::error_code ec;
     const fs::path p = fs::temp_directory_path(ec) / "parsergui-data";
     return p.string();

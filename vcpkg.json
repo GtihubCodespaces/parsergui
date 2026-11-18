@@ -1,0 +1,8 @@
+{
+  "name": "parsergui",
+  "version-string": "1.0.0",
+  "description": "Screenshot to measured Dear ImGui source",
+  "dependencies": [
+    "glfw3"
+  ]
+}

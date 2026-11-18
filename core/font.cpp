@@ -79,18 +79,119 @@ Bitmap parse_template(const char* art) {
     return b;
 }
 
-float iou(const Bitmap& a, const Bitmap& b, bool invert_b) {
-    int inter = 0, uni = 0;
-    for (int y = 0; y < a.h; ++y) {
-        for (int x = 0; x < a.w; ++x) {
-            const bool pa = a.at(x, y) >= 110;
-            const uint8_t vb = b.at(x, y);
-            const bool pb = invert_b ? vb < 110 : vb >= 110;
-            if (pa && pb) ++inter;
-            if (pa || pb) ++uni;
+// Pads to a square without stretching, so a one-pixel rule keeps its aspect
+// instead of being blown up into a full block.
+Bitmap pad_square(const Bitmap& src) {
+    Bitmap out;
+    const int side = std::max(src.w, src.h);
+    if (side <= 0) return out;
+    out.w = side;
+    out.h = side;
+    out.v.assign(static_cast<size_t>(side) * side, 0);
+    const int ox = (side - src.w) / 2;
+    const int oy = (side - src.h) / 2;
+    for (int y = 0; y < src.h; ++y)
+        for (int x = 0; x < src.w; ++x)
+            out.v[static_cast<size_t>(y + oy) * side + (x + ox)] = src.at(x, y);
+    return out;
+}
+
+// Tight ink bounds, so image and template are normalised from the same origin.
+Bitmap crop_ink(const Bitmap& src) {
+    int x0 = src.w, y0 = src.h, x1 = -1, y1 = -1;
+    for (int y = 0; y < src.h; ++y)
+        for (int x = 0; x < src.w; ++x)
+            if (src.at(x, y) >= 110) {
+                x0 = std::min(x0, x);
+                y0 = std::min(y0, y);
+                x1 = std::max(x1, x);
+                y1 = std::max(y1, y);
+            }
+    if (x1 < x0 || y1 < y0) return src;
+    Bitmap out;
+    out.w = x1 - x0 + 1;
+    out.h = y1 - y0 + 1;
+    out.v.assign(static_cast<size_t>(out.w) * out.h, 0);
+    for (int y = 0; y < out.h; ++y)
+        for (int x = 0; x < out.w; ++x) out.v[static_cast<size_t>(y) * out.w + x] = src.at(x + x0, y + y0);
+    return out;
+}
+
+float coverage(const Bitmap& b) {
+    if (b.w <= 0 || b.h <= 0) return 0.f;
+    int inked = 0;
+    for (uint8_t v : b.v)
+        if (v >= 110) ++inked;
+    return static_cast<float>(inked) / static_cast<float>(b.w * b.h);
+}
+
+// Euclidean-ish distance to the nearest inked cell. Two passes, 1 / 1.414 costs.
+std::vector<float> distance_to_ink(const Bitmap& b) {
+    const float kInf = 1e6f;
+    std::vector<float> d(static_cast<size_t>(b.w) * b.h, kInf);
+    if (b.w <= 0 || b.h <= 0) return d;
+    auto at = [&](int x, int y) -> float& { return d[static_cast<size_t>(y) * b.w + x]; };
+    for (int y = 0; y < b.h; ++y)
+        for (int x = 0; x < b.w; ++x)
+            if (b.at(x, y) >= 110) at(x, y) = 0.f;
+    for (int y = 0; y < b.h; ++y) {
+        for (int x = 0; x < b.w; ++x) {
+            float v = at(x, y);
+            if (x > 0) v = std::min(v, at(x - 1, y) + 1.f);
+            if (y > 0) v = std::min(v, at(x, y - 1) + 1.f);
+            if (x > 0 && y > 0) v = std::min(v, at(x - 1, y - 1) + 1.414f);
+            if (x + 1 < b.w && y > 0) v = std::min(v, at(x + 1, y - 1) + 1.414f);
+            at(x, y) = v;
         }
     }
-    return uni > 0 ? static_cast<float>(inter) / uni : 0.f;
+    for (int y = b.h - 1; y >= 0; --y) {
+        for (int x = b.w - 1; x >= 0; --x) {
+            float v = at(x, y);
+            if (x + 1 < b.w) v = std::min(v, at(x + 1, y) + 1.f);
+            if (y + 1 < b.h) v = std::min(v, at(x, y + 1) + 1.f);
+            if (x + 1 < b.w && y + 1 < b.h) v = std::min(v, at(x + 1, y + 1) + 1.414f);
+            if (x > 0 && y + 1 < b.h) v = std::min(v, at(x - 1, y + 1) + 1.414f);
+            at(x, y) = v;
+        }
+    }
+    return d;
+}
+
+// Symmetric chamfer distance between the two ink sets, in cells.
+float chamfer(const Bitmap& a, const Bitmap& b, const std::vector<float>& dtb, const std::vector<float>& dta) {
+    float total = 0.f;
+    int count = 0;
+    for (int y = 0; y < a.h; ++y)
+        for (int x = 0; x < a.w; ++x)
+            if (a.at(x, y) >= 110) {
+                total += dtb[static_cast<size_t>(y) * b.w + x];
+                ++count;
+            }
+    for (int y = 0; y < b.h; ++y)
+        for (int x = 0; x < b.w; ++x)
+            if (b.at(x, y) >= 110) {
+                total += dta[static_cast<size_t>(y) * a.w + x];
+                ++count;
+            }
+    return count > 0 ? total / static_cast<float>(count) : 1e6f;
+}
+
+// 4x4 ink density signature: separates glyphs with a similar stroke budget but a
+// different distribution (a check mark against a pencil, for example).
+void density_grid(const Bitmap& b, float out[16]) {
+    for (int i = 0; i < 16; ++i) out[i] = 0.f;
+    if (b.w <= 0 || b.h <= 0) return;
+    for (int y = 0; y < b.h; ++y)
+        for (int x = 0; x < b.w; ++x) {
+            const int gx = std::min(3, x * 4 / b.w);
+            const int gy = std::min(3, y * 4 / b.h);
+            out[gy * 4 + gx] += b.at(x, y) >= 110 ? 1.f : 0.f;
+        }
+    for (int gy = 0; gy < 4; ++gy)
+        for (int gx = 0; gx < 4; ++gx) {
+            const float cells = static_cast<float>((b.w / 4 + 1) * (b.h / 4 + 1));
+            out[gy * 4 + gx] /= std::max(1.f, cells);
+        }
 }
 
 double median_of(std::vector<int> v) {
@@ -341,22 +442,38 @@ const std::vector<IconTemplate>& icon_templates() {
 IconMatch match_icon(const Image& img, const RectI& box, RGBA ink) {
     IconMatch best;
     if (box.empty()) return best;
-    const int N = 12;
-    const Bitmap bmp = downsample(ink_bitmap(img, box, ink, 26.f), N, N);
+    const int N = 24;
+    const Bitmap raw = ink_bitmap(img, box, ink, 26.f);
+    if (raw.w <= 0 || raw.h <= 0) return best;
+    const Bitmap bmp = downsample(pad_square(crop_ink(raw)), N, N);
     int inked = 0;
     for (uint8_t v : bmp.v)
         if (v >= 110) ++inked;
     if (inked < 6) return best;
+    // A solid block is a surface (a logo tile, a swatch), not a glyph.
+    if (static_cast<float>(inked) / static_cast<float>(N * N) > 0.86f) return best;
+    const std::vector<float> dt_a = distance_to_ink(bmp);
+    const float cov_a = coverage(bmp);
+    float grid_a[16];
+    density_grid(bmp, grid_a);
 
     for (const auto& t : icon_templates()) {
-        const Bitmap temp = downsample(parse_template(t.art), N, N);
-        for (int inv = 0; inv < 2; ++inv) {
-            const float s = iou(bmp, temp, inv == 1);
-            if (s > best.score) {
-                best.score = s;
-                best.name = t.name;
-                best.inverted = inv == 1;
-            }
+        const Bitmap temp = downsample(pad_square(crop_ink(parse_template(t.art))), N, N);
+        const std::vector<float> dt_b = distance_to_ink(temp);
+        const float d = chamfer(bmp, temp, dt_b, dt_a);
+        const float s_chamfer = std::clamp(1.f - d / 3.2f, 0.f, 1.f);
+        float grid_b[16];
+        density_grid(temp, grid_b);
+        float gd = 0.f;
+        for (int i = 0; i < 16; ++i) gd += std::fabs(grid_a[i] - grid_b[i]);
+        gd /= 16.f;
+        const float s_grid = std::clamp(1.f - gd * 3.5f, 0.f, 1.f);
+        const float s_cov = std::clamp(1.f - std::fabs(cov_a - coverage(temp)) * 4.f, 0.f, 1.f);
+        const float s = 0.55f * s_chamfer + 0.30f * s_grid + 0.15f * s_cov;
+        if (s > best.score) {
+            best.score = s;
+            best.name = t.name;
+            best.inverted = false;
         }
     }
     return best;
@@ -367,7 +484,7 @@ std::vector<RectI> icon_candidates(const std::vector<Component>& comps, int max_
     std::vector<RectI> small;
     for (const auto& c : comps) {
         if (c.bbox.w > max_size || c.bbox.h > max_size) continue;
-        if (c.bbox.w < 4 || c.bbox.h < 4) continue;
+        if (c.bbox.w < 8 || c.bbox.h < 8) continue;
         small.push_back(c.bbox);
     }
     std::vector<int> used(small.size(), 0);
@@ -395,7 +512,7 @@ std::vector<RectI> icon_candidates(const std::vector<Component>& comps, int max_
                 }
             }
         }
-        if (box.w >= 6 && box.h >= 6) out.push_back(box);
+        if (box.w >= 8 && box.h >= 8) out.push_back(box);
     }
     return out;
 }

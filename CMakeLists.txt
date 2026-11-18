@@ -84,6 +84,15 @@ if(PARSERGUI_BUILD_TESTS)
   add_test(NAME parser_roundtrip COMMAND parsergui_tests ${CMAKE_BINARY_DIR}/test_artifacts)
   add_executable(parsergui_debug tools/debug_detect.cpp)
   target_link_libraries(parsergui_debug PRIVATE pgr_core)
+
+  file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/test_artifacts/complex)
+  add_executable(parsergui_icon_tests tests/test_icons.cpp)
+  target_link_libraries(parsergui_icon_tests PRIVATE pgr_core)
+  add_test(NAME icon_recognition COMMAND parsergui_icon_tests)
+
+  add_executable(parsergui_ui_tests tests/test_ui_complex.cpp)
+  target_link_libraries(parsergui_ui_tests PRIVATE pgr_core)
+  add_test(NAME complex_ui COMMAND parsergui_ui_tests ${CMAKE_BINARY_DIR}/test_artifacts/complex)
 endif()
 
 # ---------------------------------------------------------------------------
