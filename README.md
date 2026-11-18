@@ -283,10 +283,28 @@ publie l'artefact. Le job Android installe explicitement `cmake;3.22.1` (sans lu
 la configuration native échoue), assemble l'APK, vérifie la présence des `.so`
 arm64/x86_64 puis publie l'APK.
 
-Deux défauts trouvés en réparant la CI : `install(TARGETS parsergui ...)`
-s'exécutait aussi sous Android alors que la cible n'existe pas (échec de
-configuration CMake), et les seuils de luminance de la détection GUI étaient
-calibrés sur 0..255 alors que `luma_at` renvoie 0..1.
+Le dernier run est **vert sur les 6 jobs** et publie six artefacts :
+`parsergui-linux-x64`, `-windows-x64`, `-windows-x86`, `-macos-arm64`,
+`-macos-x64` et `parsergui-android` (APK 4,5 Mo, `libpgr_core.so` arm64 +
+x86_64 vérifié).
+
+Défauts réels trouvés en réparant la CI :
+
+- `install(TARGETS parsergui ...)` s'exécutait sous Android alors que la cible
+  n'existe pas → configuration CMake en échec ;
+- `setup-android@v3` cassé par la migration Node 20 → 24 → SDK de l'image
+  Ubuntu utilisé directement, avec `cmake;3.22.1` installé explicitement ;
+- MSVC n'a **pas** `socklen_t` (Winsock attend un `int*`) ;
+- MSVC tronque tout littéral de plus de 16380 octets (C2026) → page du studio
+  découpée en cinq littéraux adjacents ;
+- `<GL/gl.h>` du SDK Windows exige `<windows.h>` avant lui, et
+  `GL_CLAMP_TO_EDGE` (GL 1.2) manque du header 1.1 ;
+- `luma_at` renvoie 0..1 alors que les seuils de la détection GUI étaient
+  calibrés sur 0..255.
+
+Pour rendre ces diagnostics lisibles sans session authentifiée, le build écrit
+son journal et republie les premières erreurs du compilateur en annotations du
+run.
 
 ## Skills
 
