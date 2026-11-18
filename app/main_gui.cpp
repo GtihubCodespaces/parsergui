@@ -10,7 +10,14 @@
 #include "imgui_impl_opengl3.h"
 
 #include <GLFW/glfw3.h>
-#ifdef __APPLE__
+#if defined(_WIN32)
+// The Windows SDK's GL/gl.h uses APIENTRY and WINGDIAPI without defining them;
+// MinGW's header is self-contained but MSVC requires windows.h first.
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <GL/gl.h>
+#elif defined(__APPLE__)
 #include <OpenGL/gl.h>
 #else
 #include <GL/gl.h>
