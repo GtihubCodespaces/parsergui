@@ -58,6 +58,7 @@ void usage() {
     std::printf(
         "parsergui %s - screenshot to ImGui reconstruction\n\n"
         "  parsergui parse <image...> [--out DIR] [--colors N] [--no-icons] [--json]\n"
+        "                    [--no-auto-gui] [--crop X,Y,W,H]\n"
         "  parsergui serve [--port 8787] [--data DIR]\n"
         "  parsergui providers [--free] [--q TEXT] [--test ID]\n"
         "  parsergui agent --job DIR --agent claude|codex|opencode|provider|plan [--provider ID] [--budget N]\n"
@@ -69,11 +70,23 @@ int cmd_parse(const std::vector<std::string>& args, const char* argv0) {
     std::vector<std::string> inputs;
     std::string out = "parsergui-out";
     AnalysisOptions options;
+    options.auto_gui = true;  // a game frame with an overlay is the common case
     bool json_only = false;
     for (size_t i = 0; i < args.size(); ++i) {
         if (args[i] == "--out" && i + 1 < args.size()) out = args[++i];
         else if (args[i] == "--colors" && i + 1 < args.size()) options.max_colors = std::atoi(args[++i].c_str());
         else if (args[i] == "--no-icons") options.detect_icons = false;
+        else if (args[i] == "--no-auto-gui") options.auto_gui = false;
+        else if (args[i] == "--auto-gui") options.auto_gui = true;
+        else if (args[i] == "--crop" && i + 1 < args.size()) {
+            int x = 0, y = 0, w = 0, h = 0;
+            if (std::sscanf(args[++i].c_str(), "%d,%d,%d,%d", &x, &y, &w, &h) == 4)
+                options.crop = RectI{x, y, w, h};
+            else {
+                std::fprintf(stderr, "--crop expects X,Y,W,H\n");
+                return 2;
+            }
+        }
         else if (args[i] == "--json") json_only = true;
         else if (args[i].rfind("--", 0) == 0) {
             std::fprintf(stderr, "unknown flag %s\n", args[i].c_str());

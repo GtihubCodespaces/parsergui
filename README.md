@@ -56,12 +56,43 @@ Menu contextuel (640×420, seconde mise en page indépendante) :
 fidelity 95.7/100
 ```
 
+Overlay de jeu (1600×900, fond 3D saturé + panneau ImGui sombre) :
+
+```
+region 561x462 at 999,99 (attendu 560x460 at 1000,100) · confiance 0.90
+65 elements · 4 panels · fidelity 91.4/100
+```
+
 Icônes : **84/84** templates se reconnaissent eux-mêmes à 2×, 3× et 4×.
 Le code C++ généré est vérifié par le compilateur à chaque analyse :
 
 ```
 g++ -std=c++17 -fsyntax-only -I third_party/imgui parsed_ui.cpp   # 0 erreur
 ```
+
+## Détection automatique du GUI
+
+Une capture n'est pas toujours l'interface : c'est souvent une scène de jeu avec
+un overlay flottant. `find_gui_region` isole la fenêtre avant toute mesure :
+
+1. masque des pixels **sombres, neutres et localement plats** (un panneau, pas une
+   forêt) ;
+2. composantes connexes, puis filtres de taille, remplissage, bords droits ;
+3. **preuve de widgets** : densité de contours et proportion de pixels clairs
+   (texte, icônes, accents) — un trou noir sans texte est rejeté ;
+4. fusion des fragments séparés par un filet de 1 px (pied de fenêtre, onglet) ;
+5. score 0..1, seuil 0.42, sinon la pleine image est analysée comme avant.
+
+```bash
+parsergui parse shot.png --out ./out              # auto par défaut
+parsergui parse shot.png --crop 1000,100,560,460  # région explicite
+parsergui parse ui.png --no-auto-gui              # image déjà recadrée
+```
+
+Serveur : option `auto_gui` (activée par défaut, case « GUI auto » dans le studio)
+et `crop: [x,y,w,h]`. Le rapport expose `region` et `auto_gui` en JSON, et
+« GUI region … (auto-detected) » en Markdown. Les coordonnées des éléments sont
+celles de la fenêtre détectée, donc directement utilisables dans une ImGui.
 
 ## Tests
 
@@ -74,8 +105,10 @@ ctest --test-dir build --output-on-failure
 | `parser_roundtrip` | 23 | encodage PNG, mesures, palette, JSON, émission, artefacts |
 | `icon_recognition` | 6 | 84 auto-correspondances + scène loupe nommée |
 | `complex_ui` | 17 | dashboard + menu déroulant, menu contextuel, rôles, fidélité |
+| `overlay_detection` | 19 | overlay sur fond de jeu, réplique 1600×900, crop explicite, faux positifs |
 
-Total : **46 vérifications**, 0 échec.
+Total : **65 vérifications**, 0 échec. La suite overlay vérifie aussi toute image
+PNG déposée dans `assets/demo/overlay/`.
 
 ## Arborescence
 
@@ -164,6 +197,8 @@ MSVC et exécute les tests.
 
 ```bash
 prebuilt/linux-x64/parsergui parse capture.png --out ./out
+parsergui parse overlay.png --auto-gui --out ./out
+parsergui parse capture.png --crop 1000,100,560,460 --out ./out
 parsergui parse t0.png t1.png t2.png --frames
 parsergui serve --port 8787 --data ./parsergui-data
 parsergui providers --free
@@ -235,14 +270,23 @@ cd android && gradle assembleDebug
 
 | Job | Runner | Cible |
 | --- | --- | --- |
-| desktop-linux-x64 | ubuntu-22.04 | CLI, serveur, GUI, tests |
-| desktop-windows-x64 | windows-2022 | `-A x64` |
-| desktop-windows-x86 | windows-2022 | `-A Win32` |
+| desktop-linux-x64 | ubuntu-24.04 | CLI, serveur, GUI (X11), tests |
+| desktop-windows-x64 | windows-2022 | Visual Studio 17, `-A x64` |
+| desktop-windows-x86 | windows-2022 | Visual Studio 17, `-A Win32` |
 | desktop-macos-arm64 | macos-15 | Apple Silicon |
 | desktop-macos-x64 | macos-15-intel | Intel |
-| android-arm64-x86_64 | ubuntu-22.04 | `gradle assembleDebug` + NDK 26 |
+| android-arm64-x86_64 | ubuntu-24.04 | Gradle 8.7 + NDK 26 + CMake 3.22.1 |
 
-Chaque job desktop exécute `ctest`, un smoke test du binaire et publie `dist/`.
+Chaque job desktop compile GUI + tests, exécute `ctest`, installe `dist/`, fait
+un smoke test réel (`parsergui version`, puis une analyse auto-croppée) et
+publie l'artefact. Le job Android installe explicitement `cmake;3.22.1` (sans lui
+la configuration native échoue), assemble l'APK, vérifie la présence des `.so`
+arm64/x86_64 puis publie l'APK.
+
+Deux défauts trouvés en réparant la CI : `install(TARGETS parsergui ...)`
+s'exécutait aussi sous Android alors que la cible n'existe pas (échec de
+configuration CMake), et les seuils de luminance de la détection GUI étaient
+calibrés sur 0..255 alors que `luma_at` renvoie 0..1.
 
 ## Skills
 
@@ -254,6 +298,13 @@ Chaque job desktop exécute `ctest`, un smoke test du binaire et publie `dist/`.
 
 - **Pas d'OCR.** Les textes non reconnus restent des placeholders `// TODO(text)`
   mesurés (position, taille, couleur) ; l'agent vision peut les remplir.
+- La détection d'overlay suppose une fenêtre **sombre, neutre et rectangulaire**
+  (ImGui classique). Un thème clair sur fond clair, ou un panneau très incurvé,
+  demande un `--crop` explicite.
+- Les deux captures de jeu fournies dans la conversation n'étaient pas
+  accessibles comme fichiers dans l'espace de travail : la détection est validée
+  sur une réplique 1600×900 générée, et la suite vérifiera automatiquement vos
+  PNG dès qu'ils sont dans `assets/demo/overlay/`.
 - Les captures bruitées (photo d'écran, JPEG agressif) dégradent la segmentation ;
   le rapport expose alors les avertissements et la fidélité baisse.
 - L'application desktop a été validée par compilation (headers GLFW réels, CI)

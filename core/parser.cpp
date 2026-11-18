@@ -40,13 +40,32 @@ ParseResult parse_screenshot(const Image& image, const AnalysisOptions& options,
         result.error = "empty or undecodable image";
         return result;
     }
-    result.screen = detect_screen(image, options, name);
+    // A screenshot is not always the GUI: it can be a game frame with a floating
+    // overlay. Locate that rectangle first and measure only it, so trees and
+    // characters never become elements.
+    Image working = image;
+    RectI region;
+    const int full_area = image.width() * image.height();
+    if (!options.crop.empty()) {
+        region = options.crop.clip(image.width(), image.height());
+        if (region.area() < 64 || region.area() >= full_area * 0.94) region = RectI{};
+    } else if (options.auto_gui) {
+        const GuiRegion gui = find_gui_region(image);
+        if (gui.found() && gui.rect.area() < full_area * 0.94) {
+            region = gui.rect.clip(image.width(), image.height());
+        }
+    }
+    if (!region.empty()) working = image.crop(region);
+
+    result.screen = detect_screen(working, options, name);
+    result.screen.region = region;
+    result.screen.auto_gui = !region.empty() && options.crop.empty();
 
     RenderOptions ro;
     ro.carry_text_pixels = true;
-    result.reconstruction = render_reconstruction(result.screen, &image, ro);
-    const Similarity sim = compare_images(image, result.reconstruction);
-    result.diff = make_diff_image(image, result.reconstruction);
+    result.reconstruction = render_reconstruction(result.screen, &working, ro);
+    const Similarity sim = compare_images(working, result.reconstruction);
+    result.diff = make_diff_image(working, result.reconstruction);
     result.fidelity = sim.fidelity;
 
     result.screen.report.fidelity = sim.fidelity;
@@ -58,6 +77,8 @@ ParseResult parse_screenshot(const Image& image, const AnalysisOptions& options,
             << result.screen.report.buttons << " buttons, " << result.screen.report.inputs << " inputs, "
             << result.screen.report.icons << " icons; grid " << result.screen.metrics.base_unit << "px; "
             << "fidelity " << static_cast<int>(sim.fidelity) << "/100 (" << fidelity_summary(sim) << ")";
+    if (!region.empty())
+        summary << "; gui " << region.w << "x" << region.h << " at " << region.x << "," << region.y;
     result.screen.report.summary = summary.str();
     if (sim.fidelity < 70.f)
         result.screen.report.warnings.push_back(

@@ -111,8 +111,14 @@ std::string JobStore::submit(const std::vector<HttpPart>& files, const Json& opt
                                   : std::to_string(images.size()) + " frames";
     job.bytes = total;
     job.eta_seconds = 2 + static_cast<int>(images.size() * 2);
+    job.options.auto_gui = true;  // overlays are cropped out of game frames by default
     if (options.is_object()) {
         if (options.has("max_colors")) job.options.max_colors = std::clamp(options.find("max_colors")->as_int(24), 4, 64);
+        if (options.has("auto_gui")) job.options.auto_gui = options.find("auto_gui")->as_bool(true);
+        if (const Json* crop = options.find("crop"); crop && crop->is_array() && crop->size() == 4) {
+            job.options.crop = RectI{crop->at(0).as_int(), crop->at(1).as_int(), crop->at(2).as_int(),
+                                     crop->at(3).as_int()};
+        }
         if (options.has("icons")) job.options.detect_icons = options.find("icons")->as_bool(true);
         if (options.has("text")) job.options.detect_text = options.find("text")->as_bool(true);
         if (options.has("sequence")) job.options.sequence = options.find("sequence")->as_bool(true);

@@ -9,6 +9,10 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 option(PARSERGUI_BUILD_GUI "Build the Dear ImGui desktop application" ON)
+if(MSVC)
+  # Sources and generated reports contain UTF-8 French text and UI strings.
+  add_compile_options(/utf-8)
+endif()
 option(PARSERGUI_BUILD_TESTS "Build the test suite" ON)
 option(PARSERGUI_ANDROID "Build the Android native library" OFF)
 if(PARSERGUI_ANDROID)
@@ -19,6 +23,8 @@ endif()
 # No external codec: stb_image / stb_image_write are vendored and self-contained.
 if(WIN32)
   set(PGR_PLATFORM_LIBS ws2_32)
+elseif(ANDROID)
+  set(PGR_PLATFORM_LIBS log)
 elseif(UNIX AND NOT APPLE)
   find_package(Threads REQUIRED)
   set(PGR_PLATFORM_LIBS Threads::Threads)
@@ -38,6 +44,7 @@ add_library(pgr_core STATIC
   core/segment.cpp
   core/font.cpp
   core/detect.cpp
+  core/gui_region.cpp
   core/render.cpp
   core/emit.cpp
   core/json.cpp
@@ -93,13 +100,17 @@ if(PARSERGUI_BUILD_TESTS)
   add_executable(parsergui_ui_tests tests/test_ui_complex.cpp)
   target_link_libraries(parsergui_ui_tests PRIVATE pgr_core)
   add_test(NAME complex_ui COMMAND parsergui_ui_tests ${CMAKE_BINARY_DIR}/test_artifacts/complex)
+
+  add_executable(parsergui_overlay_tests tests/test_overlay.cpp)
+  target_link_libraries(parsergui_overlay_tests PRIVATE pgr_core)
+  add_test(NAME overlay_detection COMMAND parsergui_overlay_tests ${CMAKE_BINARY_DIR}/test_artifacts/overlay)
 endif()
 
 # ---------------------------------------------------------------------------
 # GUI
 # ---------------------------------------------------------------------------
 find_package(OpenGL QUIET)
-if(PARSERGUI_BUILD_GUI AND (WIN32 OR APPLE OR UNIX))
+if(PARSERGUI_BUILD_GUI AND (WIN32 OR APPLE OR UNIX) AND OpenGL_FOUND)
   include(FetchContent)
   set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
   set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -140,8 +151,13 @@ if(PARSERGUI_ANDROID)
   set_target_properties(parsergui_native PROPERTIES OUTPUT_NAME pgr_core)
 endif()
 
-set(PGR_INSTALL_TARGETS parsergui parsergui_fixture)
-if(TARGET parsergui_gui)
-  list(APPEND PGR_INSTALL_TARGETS parsergui_gui)
+# Install rules reference targets that only exist in a desktop build. Under
+# Android (PARSERGUI_ANDROID=ON) those targets are not created, and an
+# unconditional install(TARGETS ...) makes CMake configure fail.
+if(NOT PARSERGUI_ANDROID)
+  set(PGR_INSTALL_TARGETS parsergui parsergui_fixture)
+  if(TARGET parsergui_gui)
+    list(APPEND PGR_INSTALL_TARGETS parsergui_gui)
+  endif()
+  install(TARGETS ${PGR_INSTALL_TARGETS} RUNTIME DESTINATION bin)
 endif()
-install(TARGETS ${PGR_INSTALL_TARGETS} RUNTIME DESTINATION bin)

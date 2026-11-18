@@ -1,0 +1,68 @@
+parsergui layout — synthetic_game_overlay.png (561x462)
+grid 4px, margin 427px, dpr 1
+
+#0 Window [0,0 561x462] gap 35  100%
+  #1 Panel [1,36 560x392] b3 pad(16,15,16,35) gap 14  55%
+    #2 Panel [17,93 266x300] r10 pad(20,18,26,39) gap 31  55%
+      #8 Unknown [227,188 30x16] r8  55%
+        #63 Icon [227,188 30x16] icon:lock  72%
+      #9 Unknown [227,264 30x16] r8  55%
+        #65 Icon [227,264 30x16] icon:lock  72%
+      #10 Unknown [227,226 30x16] r8  55%
+        #64 Icon [227,226 30x16] icon:lock  72%
+      #11 Unknown [227,150 30x16] r8  55%
+        #62 Icon [227,150 30x16] icon:lock  72%
+      #22 Toggle [37,190 12x12] r6  55%
+        #69 Icon [37,190 12x12] icon:lock  70%
+      #28 Toggle [37,304 12x12] r6  55%
+      #29 Toggle [37,342 12x12] r6  55%
+      #30 Toggle [37,266 12x12] r6  55%
+      #31 Toggle [37,152 12x12] r6  55%
+      #32 Toggle [37,228 12x12] r6  55%
+      #42 Label [41,111 52x7]  81%
+      #44 MenuItem [61,151 62x8]  98%
+      #47 MenuItem [61,189 62x8]  98%
+      #49 MenuItem [61,227 62x8]  98%
+      #51 MenuItem [61,265 62x8]  98%
+      #53 MenuItem [61,303 62x8]  98%
+      #54 Label [199,303 52x7]  81%
+      #56 MenuItem [61,341 62x8]  98%
+      #57 Label [199,341 52x7]  81%
+    #3 Panel [297,93 248x300] r10 pad(18,18,9,31) gap 43  55%
+      #7 Unknown [315,350 124x12] r6 pad(112,0,0,7)  55%
+        #58 Label [427,350 12x5]  63%
+      #14 Progress [439,355 76x3]  55%
+      #15 Toggle [315,184 14x14] r4  55%
+        #66 Icon [315,184 14x14] icon:glyph  54%
+      #16 Toggle [315,218 14x14] r4  55%
+        #20 Toggle [313,216 18x18] b3 shadow pad(4,4,4,4)  55%
+          #35 Unknown [317,220 10x10]  55%
+      #17 Toggle [315,252 14x14] r4  55%
+        #23 Toggle [313,250 18x18] b3 shadow pad(4,4,4,4)  55%
+          #34 Unknown [317,254 10x10]  55%
+      #18 Toggle [315,286 14x14] r4  55%
+        #21 Toggle [313,284 18x18] b3 shadow pad(4,4,4,4)  55%
+          #36 Unknown [317,288 10x10]  55%
+      #19 Toggle [315,150 14x14] r4  55%
+        #67 Icon [315,150 14x14] icon:glyph  54%
+      #43 Label [321,111 52x7]  81%
+      #45 MenuItem [339,151 52x7]  81%
+      #46 MenuItem [339,185 62x7]  98%
+      #48 MenuItem [339,219 69x7]  86%
+      #50 MenuItem [339,253 52x7]  81%
+      #52 MenuItem [339,287 62x7]  98%
+      #55 Label [315,337 78x7]  98%
+      #59 Label [515,351 21x7]  58%
+    #6 Button [17,51 528x28] r8 pad(13,9,505,9)  55%
+      #33 Unknown [30,60 10x10] r5  55%
+  #4 Button [1,1 560x38] r13 pad(166,14,132,4) gap 10  55%
+    #37 Progress [167,33 46x2]  55%
+    #38 Unknown [421,15 8x8]  55%
+  #5 Panel [0,427 561x35] r14 b1 pad(19,10,34,19)  55%
+    #60 Label [19,437 37x6]  70%
+    #61 Label [465,437 62x6]  98%
+  #12 Unknown [0,0 31x14] b3  55%
+  #13 Unknown [528,0 33x11] b3 pad(2,0,0,3)  55%
+    #68 Icon [530,0 31x8] icon:dots_horizontal  57%
+  #40 Label [420,0 55x1]  70%
+  #41 Label [498,0 20x1]  53%

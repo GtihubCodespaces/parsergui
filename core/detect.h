@@ -20,6 +20,17 @@ struct DetectDebug {
 Screen detect_screen(const Image& img, const AnalysisOptions& options, const std::string& name,
                      DetectDebug* debug = nullptr);
 
+// A GUI overlay found inside a larger screenshot (a game frame, a desktop
+// wallpaper). Coordinates are in source pixels; `rect` is empty when nothing
+// convincing was found.
+struct GuiRegion {
+    RectI rect;
+    float confidence = 0.f;
+    std::string reason;
+    bool found() const { return !rect.empty(); }
+};
+GuiRegion find_gui_region(const Image& img);
+
 // Measures one rectangle against its surroundings. Exposed because the agent
 // tools use it to verify a patch against a screenshot.
 int measure_radius(const Image& img, const RectI& rect, RGBA fill, RGBA outside, int inset = 0);

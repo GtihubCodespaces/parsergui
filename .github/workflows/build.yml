@@ -12,34 +12,30 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CTEST_OUTPUT_ON_FAILURE: 1
+
 jobs:
   desktop:
     name: desktop-${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: linux-x64
-            os: ubuntu-22.04
-            generator: Unix Makefiles
-            arch: ""
+            os: ubuntu-24.04
           - name: windows-x64
             os: windows-2022
-            generator: Visual Studio 17 2022
             arch: x64
           - name: windows-x86
             os: windows-2022
-            generator: Visual Studio 17 2022
             arch: Win32
           - name: macos-arm64
             os: macos-15
-            generator: Unix Makefiles
-            arch: ""
           - name: macos-x64
             os: macos-15-intel
-            generator: Unix Makefiles
-            arch: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -47,13 +43,17 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y xorg-dev libgl1-mesa-dev
+          sudo apt-get install -y --no-install-recommends \
+            xorg-dev libgl1-mesa-dev libwayland-dev libxkbcommon-dev
 
       - name: Configure
         shell: bash
+        env:
+          TARGET_ARCH: ${{ matrix.arch }}
         run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            cmake -S . -B build -G "${{ matrix.generator }}" -A "${{ matrix.arch }}" \
+          cmake --version
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cmake -S . -B build -G "Visual Studio 17 2022" -A "${TARGET_ARCH:-x64}" \
               -DPARSERGUI_BUILD_GUI=ON -DPARSERGUI_BUILD_TESTS=ON
           else
             cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
@@ -69,14 +69,17 @@ jobs:
       - name: Install
         run: cmake --install build --config Release --prefix dist
 
-      - name: Smoke test CLI
+      - name: Smoke test
         shell: bash
         run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            ./dist/bin/parsergui.exe version
-          else
-            ./dist/bin/parsergui version
-          fi
+          BIN=dist/bin/parsergui
+          if [ -f "$BIN.exe" ]; then BIN="$BIN.exe"; fi
+          "$BIN" version
+          rm -rf smoke-out
+          "$BIN" parse assets/demo/complex/source.png --out smoke-out --auto-gui
+          test -f smoke-out/report.json
+          test -f smoke-out/parsed_ui.cpp
+          grep -q "elements" smoke-out/report.json
 
       - uses: actions/upload-artifact@v4
         with:
@@ -86,7 +89,8 @@ jobs:
 
   android:
     name: android-arm64-x86_64
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -97,10 +101,14 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - name: Install SDK and NDK
+      - name: Install SDK, NDK and CMake
         run: |
           yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
+          sdkmanager --install \
+            "platforms;android-34" \
+            "build-tools;34.0.0" \
+            "ndk;26.1.10909125" \
+            "cmake;3.22.1"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -110,9 +118,11 @@ jobs:
         working-directory: android
         run: gradle assembleDebug --no-daemon --stacktrace
 
-      - name: Check native library
+      - name: Verify APK
         run: |
-          unzip -l android/app/build/outputs/apk/debug/app-debug.apk | grep -E "lib/(arm64-v8a|x86_64)/libpgr_core.so"
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$APK"
+          unzip -l "$APK" | grep -E "lib/(arm64-v8a|x86_64)/libpgr_core\.so"
 
       - uses: actions/upload-artifact@v4
         with:

@@ -154,6 +154,7 @@ const char* kWebUiHtml = R"HTML(<!doctype html>
             <div class="options">
               <label>Couleurs <input type="number" id="opt-colors" min="4" max="64" value="24"></label>
               <label><input type="checkbox" id="opt-icons" checked> Icônes</label>
+              <label><input type="checkbox" id="opt-auto-gui" checked> GUI auto</label>
               <label><input type="checkbox" id="opt-sequence"> Animations (frames liées)</label>
               <label><input type="checkbox" id="opt-strict"> Strict</label>
             </div>
@@ -330,6 +331,7 @@ $('btn-upload').onclick = async () => {
   const options = {
     max_colors: +$('opt-colors').value || 24,
     icons: $('opt-icons').checked,
+    auto_gui: $('opt-auto-gui').checked,
     sequence: $('opt-sequence').checked
   };
   // Animations checked: one job holding every frame. Otherwise one job per image,

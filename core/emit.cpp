@@ -510,6 +510,15 @@ Json screen_json(const Screen& screen) {
     root["height"] = screen.height;
     root["background"] = hex_string(screen.background);
     root["device_pixel_ratio"] = screen.report.device_pixel_ratio;
+    if (!screen.region.empty()) {
+        Json region = Json::array();
+        region.push_back(screen.region.x);
+        region.push_back(screen.region.y);
+        region.push_back(screen.region.w);
+        region.push_back(screen.region.h);
+        root["region"] = region;
+        root["auto_gui"] = screen.auto_gui;
+    }
 
     Json metrics = Json::object();
     metrics["base_unit"] = screen.metrics.base_unit;
@@ -669,6 +678,9 @@ std::string emit_markdown(const Screen& screen) {
     o << "# " << (screen.name.empty() ? "screenshot" : screen.name) << "\n\n";
     o << "- Source: " << screen.width << " x " << screen.height << " px, dpr "
       << screen.report.device_pixel_ratio << "\n";
+    if (!screen.region.empty())
+        o << "- GUI region: " << screen.region.w << " x " << screen.region.h << " at " << screen.region.x << ","
+          << screen.region.y << (screen.auto_gui ? " (auto-detected)" : " (explicit crop)") << "\n";
     o << "- Elements: " << screen.report.elements << " (" << screen.report.cards << " panels, "
       << screen.report.buttons << " buttons, " << screen.report.inputs << " inputs, " << screen.report.icons
       << " icons)\n";

@@ -208,6 +208,11 @@ struct AnalysisOptions {
     bool strict = false;
     int min_element_size = 6;
     std::string target = "imgui";  // emitter target
+    // When set, a GUI overlay is located inside the screenshot and only that
+    // rectangle is measured (a game HUD over a 3D scene, a floating window on a
+    // wallpaper). `crop` is an explicit region and wins over auto_gui.
+    bool auto_gui = false;
+    RectI crop;
 };
 
 struct AnalysisReport {
@@ -233,6 +238,8 @@ struct AnalysisReport {
 struct Screen {
     std::string name;
     int width = 0, height = 0;
+    RectI region;        // parsed rectangle in source pixels, empty for a full frame
+    bool auto_gui = false;  // region was found automatically
     RGBA background;
     std::vector<Element> elements;
     std::vector<PaletteEntry> palette;
