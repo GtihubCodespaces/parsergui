@@ -61,7 +61,21 @@ jobs:
           fi
 
       - name: Build
-        run: cmake --build build --config Release --parallel 3
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build build --config Release --parallel 3 2>&1 | tee build-output.log
+
+      # Compiler diagnostics live in the step log; surface the first few as
+      # annotations so a failure is diagnosable from the run page itself.
+      - name: Report build errors
+        if: failure()
+        shell: bash
+        run: |
+          grep -iE "error [A-Z]+[0-9]+|error:|fatal error|CMake Error" build-output.log | head -8 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
+          exit 1
 
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
