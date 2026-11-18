@@ -145,7 +145,26 @@ jobs:
 
       - name: Build APK
         working-directory: android
-        run: gradle assembleDebug --no-daemon --stacktrace
+        shell: bash
+        env:
+          GRADLE_OPTS: -Dorg.gradle.daemon=false
+        run: |
+          set -o pipefail
+          # Gradle downloads plugins and the NDK toolchain on a cold runner; a
+          # transient network failure should not fail the whole matrix.
+          for attempt in 1 2; do
+            if gradle assembleDebug --no-daemon --stacktrace --max-workers=2 2>&1 | tee gradle.log; then
+              exit 0
+            fi
+            if [ "$attempt" = "1" ]; then
+              echo "::warning::Gradle failed on attempt 1, retrying once"
+              sleep 10
+            fi
+          done
+          grep -E "^e: |error:|FAILURE:|What went wrong|Caused by" gradle.log | head -8 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
+          exit 1
 
       - name: Verify APK
         run: |
