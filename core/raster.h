@@ -4,6 +4,8 @@
 // keeps edges stable at any radius and makes the diff meaningful.
 #pragma once
 
+#include <cstdint>
+
 #include <vector>
 
 #include "image.h"

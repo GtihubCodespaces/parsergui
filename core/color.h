@@ -3,6 +3,8 @@
 // the same on dark and light themes.
 #pragma once
 
+#include <cstdint>
+
 #include <vector>
 
 #include "types.h"

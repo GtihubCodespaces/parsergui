@@ -18,6 +18,8 @@
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
 using socket_t = SOCKET;
+// MSVC has no socklen_t; Winsock accept()/getsockname() take an int*.
+using socklen_type = int;
 #define PGR_INVALID INVALID_SOCKET
 #define pgr_close closesocket
 #else
@@ -27,6 +29,7 @@ using socket_t = SOCKET;
 #include <sys/socket.h>
 #include <unistd.h>
 using socket_t = int;
+using socklen_type = socklen_t;
 #define PGR_INVALID (-1)
 #define pgr_close close
 #endif
@@ -395,7 +398,7 @@ void HttpServer::accept_loop() {
 #ifdef _WIN32
         int len = sizeof(client);
 #else
-        socklen_t len = sizeof(client);
+        socklen_type len = sizeof(client);
 #endif
         socket_t fd = accept(static_cast<socket_t>(listen_fd_), reinterpret_cast<sockaddr*>(&client), &len);
         if (fd == PGR_INVALID) {
