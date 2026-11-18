@@ -23,6 +23,11 @@
 #include <GL/gl.h>
 #endif
 
+#ifndef GL_CLAMP_TO_EDGE
+// GL 1.2 constant; the Windows SDK header only declares GL 1.1.
+#define GL_CLAMP_TO_EDGE 0x812F
+#endif
+
 #include "ui.h"
 
 namespace {

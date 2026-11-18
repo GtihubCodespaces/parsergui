@@ -3,7 +3,8 @@
 
 namespace pgr {
 
-const char* kWebUiHtml = R"HTML(<!doctype html>
+const char* kWebUiHtml =
+R"HTML(<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -96,7 +97,8 @@ const char* kWebUiHtml = R"HTML(<!doctype html>
   .metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:14px}
   .metric{border:1px solid var(--line);border-radius:6px;padding:9px 10px;background:#0f131a}
   .metric .k{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
-  .metric .v{font-family:var(--mono);font-size:16px;margin-top:2px}
+)HTML"
+R"HTML(  .metric .v{font-family:var(--mono);font-size:16px;margin-top:2px}
   .warnings{margin:0 0 12px;padding:9px 12px;border:1px solid #4a3a12;background:#1a1508;border-radius:6px;color:#e6cf8a;font-size:11px}
   .warnings div+div{margin-top:4px}
   .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
@@ -229,7 +231,8 @@ const char* kWebUiHtml = R"HTML(<!doctype html>
             </div>
             <div>
               <label>Provider</label>
-              <select id="a-provider"></select>
+)HTML"
+R"HTML(              <select id="a-provider"></select>
             </div>
             <div>
               <label>Modèle</label>
@@ -384,7 +387,8 @@ async function selectJob(id) {
     renderResult(job);
     if (job.status !== 'done' && job.status !== 'error') {
       clearTimeout(state.poll);
-      state.poll = setTimeout(async () => { await refreshJobs(); selectJob(id); }, 700);
+)HTML"
+R"HTML(      state.poll = setTimeout(async () => { await refreshJobs(); selectJob(id); }, 700);
     }
   } catch (e) { toast('Job : ' + e.message, true); }
 }
@@ -492,7 +496,8 @@ async function loadProviders() {
     $('h-providers').textContent = data.count;
     $('p-count').textContent = data.count + ' / ' + data.capacity;
     $('p-list').innerHTML = state.providers.map(p => `
-      <div class="prow" data-id="${esc(p.id)}">
+)HTML"
+R"HTML(      <div class="prow" data-id="${esc(p.id)}">
         <span class="pname">${esc(p.name)}</span>
         <span class="pcat">${esc(p.category)}</span>
         <span class="purl">${esc(p.base_url)}</span>
